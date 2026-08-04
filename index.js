@@ -8,13 +8,20 @@ const POSTBACK_GOAL = '5112';
 
 async function getBRLtoUSD() {
   try {
-    const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+    const now = new Date();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const yyyy = now.getFullYear();
+    const dataBCB = `${mm}-${dd}-${yyyy}`;
+    const url = `https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoDolarDia(dataCotacao=@dataCotacao)?@dataCotacao='${dataBCB}'&$format=json&$select=cotacaoVenda`;
+    const res = await fetch(url);
     const data = await res.json();
-    const rate = parseFloat(data.USDBRL.bid);
-    console.log(`[CÂMBIO] Taxa atual: R$${rate} por USD`);
+    const rate = data.value?.[0]?.cotacaoVenda;
+    if (!rate) throw new Error('sem cotação BACEN');
+    console.log(`[CÂMBIO] Taxa BACEN: R$${rate} por USD`);
     return rate;
   } catch (err) {
-    console.warn('[CÂMBIO] Falha ao buscar taxa, usando fallback 5.0:', err.message);
+    console.warn('[CÂMBIO] Falha BACEN, usando fallback 5.0:', err.message);
     return 5.0;
   }
 }
@@ -85,7 +92,6 @@ app.get('/test', async (req, res) => {
   const rate = await getBRLtoUSD();
 
   if (valueBRL) {
-    // Recebe em centavos igual ao webhook real (990 = R$9,90)
     const valueInReais = parseFloat(valueBRL) / 100;
     value = (valueInReais / rate).toFixed(2);
     console.log(`[TEST] R$${valueInReais} ÷ ${rate} = $${value}`);
@@ -106,9 +112,11 @@ app.get('/test', async (req, res) => {
     return res.json({ ok: false, error: err.message });
   }
 });
+
 app.get('/cambio', async (req, res) => {
   const rate = await getBRLtoUSD();
   res.json({ taxa: rate });
 });
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`[SERVER] Rodando na porta ${PORT}`));
