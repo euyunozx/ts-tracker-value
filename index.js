@@ -78,13 +78,20 @@ app.get('/', (req, res) => {
 
 app.get('/test', async (req, res) => {
   const clickId = req.query.click_id || 'teste123';
-  const valueParam = req.query.value;
+  const valueUSD = req.query.value;
+  const valueBRL = req.query.value_brl;
 
   let value;
-  if (valueParam) {
-    value = valueParam;
+  const rate = await getBRLtoUSD();
+
+  if (valueBRL) {
+    // Recebe em centavos igual ao webhook real (990 = R$9,90)
+    const valueInReais = parseFloat(valueBRL) / 100;
+    value = (valueInReais / rate).toFixed(2);
+    console.log(`[TEST] R$${valueInReais} ÷ ${rate} = $${value}`);
+  } else if (valueUSD) {
+    value = valueUSD;
   } else {
-    const rate = await getBRLtoUSD();
     value = (19.90 / rate).toFixed(2);
   }
 
@@ -94,7 +101,7 @@ app.get('/test', async (req, res) => {
   try {
     const response = await fetch(postbackUrl);
     const text = await response.text();
-    return res.json({ ok: true, clickId, value, status: response.status, resposta: text });
+    return res.json({ ok: true, clickId, value_usd: value, taxa_brl: rate, status: response.status, resposta: text });
   } catch (err) {
     return res.json({ ok: false, error: err.message });
   }
