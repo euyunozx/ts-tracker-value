@@ -5,7 +5,19 @@ app.use(express.json());
 const POSTBACK_BASE = 'https://tsyndicate.com/api/v1/cpa/action';
 const POSTBACK_KEY = '2Z7H1QGuujUPNCSHgpaCE16Ftw2dCMXeiKX4';
 const POSTBACK_GOAL = '5112';
-const USD_RATE = 5.0; // taxa BRL → USD, ajuste conforme necessário
+
+async function getBRLtoUSD() {
+  try {
+    const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-BRL');
+    const data = await res.json();
+    const rate = parseFloat(data.USDBRL.bid);
+    console.log(`[CÂMBIO] Taxa atual: R$${rate} por USD`);
+    return rate;
+  } catch (err) {
+    console.warn('[CÂMBIO] Falha ao buscar taxa, usando fallback 5.0:', err.message);
+    return 5.0;
+  }
+}
 
 function extractClickId(data) {
   return (
@@ -20,12 +32,27 @@ function extractClickId(data) {
   );
 }
 
-function extractValue(data) {
+async function extractValue(data) {
   const planValue = data?.transaction?.plan_value;
   if (!planValue) return null;
   const valueInReais = planValue / 100;
-  const valueInUSD = (valueInReais / USD_RATE).toFixed(2);
+  const rate = await getBRLtoUSD();
+  const valueInUSD = (valueInReais / rate).toFixed(2);
+  console.log(`[VALUE] R$${valueInReais} ÷ ${rate} = $${valueInUSD}`);
   return valueInUSD;
+}
+
+function extractClickId(data) {
+  return (
+    data?.tracking?.utm_id ||
+    data?.tracking?.click_id ||
+    data?.click_id ||
+    data?.clickid ||
+    data?.utm_id ||
+    data?.params?.click_id ||
+    data?.params?.utm_id ||
+    null
+  );
 }
 
 app.post('/webhook', async (req, res) => {
@@ -38,7 +65,7 @@ app.post('/webhook', async (req, res) => {
     return res.status(200).json({ ok: false, reason: 'no click_id' });
   }
 
-  const value = extractValue(data);
+  const value = await extractValue(data);
   if (!value) {
     console.warn('[WEBHOOK] plan_value não encontrado no payload');
     return res.status(200).json({ ok: false, reason: 'no value' });
@@ -64,9 +91,19 @@ app.get('/', (req, res) => {
 
 app.get('/test', async (req, res) => {
   const clickId = req.query.click_id || 'teste123';
-  const value = req.query.value || '2.00';
+  const valueParam = req.query.value;
+
+  let value;
+  if (valueParam) {
+    value = valueParam;
+  } else {
+    const rate = await getBRLtoUSD();
+    value = (19.90 / rate).toFixed(2);
+  }
+
   const postbackUrl = `${POSTBACK_BASE}?clickid=${encodeURIComponent(clickId)}&goalid=${POSTBACK_GOAL}&key=${POSTBACK_KEY}&value=${value}`;
   console.log('[TEST] Disparando postback de teste:', postbackUrl);
+
   try {
     const response = await fetch(postbackUrl);
     const text = await response.text();
