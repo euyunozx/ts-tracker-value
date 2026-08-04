@@ -42,19 +42,6 @@ async function extractValue(data) {
   return valueInUSD;
 }
 
-function extractClickId(data) {
-  return (
-    data?.tracking?.utm_id ||
-    data?.tracking?.click_id ||
-    data?.click_id ||
-    data?.clickid ||
-    data?.utm_id ||
-    data?.params?.click_id ||
-    data?.params?.utm_id ||
-    null
-  );
-}
-
 app.post('/webhook', async (req, res) => {
   const data = req.body;
   console.log('[WEBHOOK] Payload recebido:', JSON.stringify(data, null, 2));
