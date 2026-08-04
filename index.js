@@ -106,6 +106,9 @@ app.get('/test', async (req, res) => {
     return res.json({ ok: false, error: err.message });
   }
 });
-
+app.get('/cambio', async (req, res) => {
+  const rate = await getBRLtoUSD();
+  res.json({ taxa: rate });
+});
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`[SERVER] Rodando na porta ${PORT}`));
